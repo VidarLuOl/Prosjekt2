@@ -15,70 +15,27 @@ def FrankeFunction(x,y):
 
 def OLS(x, y, z, p, n, s, conf, lamda, prnt, plot, ridge):
     scaler = StandardScaler()
+    XD = Design_X(x, y, p) #Designmatrisen blir laget her
 
-    plotMSETrain = np.zeros(p)
-    plotMSETest = np.zeros(p)
-    
+    XD_train, XD_test, z_train, z_test = train_test_split(XD, z.reshape(-1,1), test_size=s) #Splitter inn i Train og Test
+    scaler.fit(XD_train) #Skalerer
+    XD_train_scaled = scaler.transform(XD_train)
+    XD_test_scaled = scaler.transform(XD_test)
 
-    for i in range(1, p+1):
-        print(i, " Da var vi igang!")
-        XD = Design_X(x, y, i) #Designmatrisen blir laget her
-
-        XD_train, XD_test, z_train, z_test = train_test_split(XD, z.reshape(-1,1), test_size=s)
-        scaler.fit(XD_train)
-        XD_train_scaled = scaler.transform(XD_train)
-        XD_test_scaled = scaler.transform(XD_test)
-
-        XD_train_scaled[:,0] = 1
-        XD_test_scaled[:,0] = 1
-
-        print("skalert")
+    XD_train_scaled[:,0] = 1
+    XD_test_scaled[:,0] = 1
         
-        beta = BetaFunc(XD_train_scaled, z_train, lamda, ridge) #Vi finner beta verdiene her
-        #beta = (X^T * X)^-1 (X^T * y) 
-        # print(beta)
+    beta = BetaFunc(XD_train_scaled, z_train, lamda, ridge) #Vi finner beta verdiene her
+    for iter in range(10):
+        gradients = (2.0/n)*XD_train_scaled.T @ ((XD_train_scaled @ beta)-z_train)
+        beta -= 0.1*gradients
 
-        print("funne beta")
 
-        ztilde_train = XD_train_scaled @ beta
-        ztilde_test = XD_test_scaled @ beta
-        #y = X * beta
 
-        print("finne model")
 
-        MeanSETrain = MSE(z_train, ztilde_train)
-        MeanSETest = MSE(z_test, ztilde_test)
-        #1/n sum(y - model(y))^2
 
-        print("funne MSE")
 
-        plotMSETrain[i-1] = MeanSETrain
-        plotMSETest[i-1] = MeanSETest
 
-        R2Train_score = R2(z_train, ztilde_train)
-        R2Test_score = R2(z_test, ztilde_test)
-        #1- sum(y - model(y))^2/sum(y - mean(y))^2
-
-        beta_variance = Variance(XD_train_scaled, np.shape(XD_train_scaled)[0])
-        beta_ConfInt = ConfInt(conf, beta_variance, np.shape(XD_train_scaled)[0])
-
-        if(prnt == 1):
-            print("Skalert og trent OLS")
-            print("Grad = %i (p)" %i)
-            print("Antall undersøkt = %i (n)" %n)
-            print("MSE = %.6f" %MeanSETrain)
-            print("R2Train = %.6f" %R2Train_score)
-            print("R2Test = %.6f" %R2Test_score)
-            print("")
-
-    if(plot == 1):
-        plt.plot(range(1,p+1), plotMSETrain, label="Train")
-        plt.plot(range(1,p+1), plotMSETest, label="Test")
-        plt.title("MSE of training and test set")
-        plt.show()
-        plt.title("Confidence intervall for the different betas")
-        plt.errorbar(range(0,len(beta)), beta, beta_ConfInt, fmt="o")
-        plt.show()
 
 
 
