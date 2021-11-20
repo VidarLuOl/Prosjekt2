@@ -56,9 +56,9 @@ class Neural:
     
     def BackwardProg(self, XD, z, eta, lmbda):
         self.ForwardProg(XD, "relu")
-
+        summ = 0
         self.layers[-1].delta = Activation.derCst(z, self.layers[-1].a)*self.layers[-1].da
-        # Activation.accuracy(z, self.layers[-1].a)
+        summ += Activation.accuracy(z, self.layers[-1].a)
 
         for i in reversed(range(1, self.hl)):
             self.layers[i].delta = (self.layers[i+1].delta @ (self.layers[i+1].weight).T) * self.layers[i].da
@@ -66,13 +66,12 @@ class Neural:
             self.layers[i].weight = self.layers[i].weight - eta * ( self.layers[i-1].a.T @ self.layers[i].delta ) - eta*lmbda*self.layers[i].weight/len(z)
 
             self.layers[i].bias = self.layers[i].bias - eta * ( self.layers[i].delta[0,:])
-
         
         self.layers[0].delta = (self.layers[1].delta @ self.layers[1].weight.T) * self.layers[0].da
         self.layers[0].weight = self.layers[0].weight - eta*(XD.T @ self.layers[0].delta) - eta*lmbda*self.layers[0].weight/len(z)
         self.layers[0].bias = self.layers[0].bias - eta*self.layers[0].delta[0,:]
 
-        return np.sum(self.layers[-1].delta)/len(XD)
+        return np.sum(self.layers[-1].delta)/len(XD), Activation.accuracy(z, self.layers[-1].a)
 
 
 

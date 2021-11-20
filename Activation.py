@@ -30,4 +30,5 @@ class Activation:
         return 1*(z>0)
 
     def accuracy(z, ztilde):
-        return np.sum((z > 0.5) == ztilde)/len(z)
+        # print(ztilde)
+        return ((ztilde > 0.5) == z)
