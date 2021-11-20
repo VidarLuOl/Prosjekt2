@@ -11,10 +11,13 @@ class layer:
         self.z = X@self.weight + self.bias
         if(act == "sigmoid"):
             self.a = Activation.sigmoid(self.z)
-        elif(act == "derSigmoid"):
-            self.a = Activation.derSigmoid(self.z)
+            self.da = Activation.derSigmoid(self.z)
+        elif(act == "relu"):
+            self.a = Activation.relu(self.z)
+            self.da = Activation.derRelu(self.z)    
         elif(act == "identity"):
             self.a = Activation.identity(self.z)
+            self.da = Activation.derIdentity(self.z)
         else:
             print("En av leddene har ikke riktig aktiveringsfunksjon")
     
@@ -28,17 +31,11 @@ class Neural:
 
 
     def setUpLayers(self, input):
-        """
-        Lager en vektor som innholder alle layersene, hver layer innolder 2 verdier, vekter og nodene de vektene peker på. 
-        Innholder altså ikke input nodene og verdiene der.
-        Kjører bare denne en gang i starten for å sette tingene opp.
-        """
-
         inputshape = input[1]
 
-        if(self.hl == 0): #Lage bare weights mellom input og output
+        if(self.hl == 0):
             layers = [layer(inputshape, 1)]
-        else: #Lage nodes i hvert hidden layer, også weights mellom layers
+        else:
             layers = []
             layers.append(layer(inputshape, self.nodes))
             for i in range(1, self.hl):
@@ -48,74 +45,32 @@ class Neural:
         self.layers = layers
 
 
-    def ForwardProg(self, XD):
-        #Her lager vi hidden nodes utifra weights og input. Vi gjør dette ved å "Call" layer klassen slik at hver klasse som fra før av innholder weights også får vektor klasser kalt a.
-        self.layers[0](XD, "derSigmoid")
+    def ForwardProg(self, XD, act):
+        self.layers[0](XD, act)
 
         for i in range(len(self.layers)-2):
-            self.layers[i+1](self.layers[i].a, "derSigmoid")
+            self.layers[i+1](self.layers[i].a, act)
 
         self.layers[-1](self.layers[-2].a, "identity")
 
     
     def BackwardProg(self, XD, z, eta, lmbda):
-        self.ForwardProg(XD)
+        self.ForwardProg(XD, "relu")
 
-        # W_new = W_old - (eta * dE/dW)  <-- Her vi fikser
-        # for i in self.layers:
-        #     print(i.a)
+        self.layers[-1].delta = Activation.derCst(z, self.layers[-1].a)*self.layers[-1].da
+        # Activation.accuracy(z, self.layers[-1].a)
 
-
-        # dE/dW[-1] = dE/dA[-1] * dA[-1]/dZ[-2] * dZ[-2]/dW[-1]    <-- Gradient descent, denne som velger hvilken vei vi går
-        # E = Error
-        # dE/dA[-1] = (a[-1]-Y)
-        # dA[-1]/dZ[-2] = a[-1](1-a[-1])
-        # dZ[-2]/dW[-1] = a[-2]
-        # dE/dW[-1] = (a[-1]-Y) * a[-1](1-a[-1]) * a[-2]
-
-
-        # dE/dB[-1] = dE/dA[-1] * dA[-1]/dZ[-2] * dZ[-2]/dB[-1]
-        # E = Error
-        # dE/dA[-1] = (a[-1]-Y)
-        # dA[-1]/dZ[-2] = a[-1](1-a[-1])
-        # dZ[-2]/dW[-1] = 1
-        # dE/dW[-1] = (a[-1]-Y) * a[-1](1-a[-1]) * 1
-
-        #delta_L =              (               f'(z_L)                     ) *         dE/dA
-        #delta_L =              (        a_L       *         (1-a_L)        ) *       (a_L - z)
-        # self.layers[-1].delta = (self.layers[-1].a * (1 - self.layers[-1].a)) * (self.layers[-1].a - z)
-        self.layers[-1].delta = Activation.derCst(z, self.layers[-1].a)*Activation.identity(self.layers[-1].z)
-
-        #dE/dW[-1] =  dE/dA[-1]  * dA[-1]/dZ[-2]  *    dZ[-2]/dW[-1]
-        #dE/dW[-1] = (a[-1] - Y) * a[-1](1-a[-1]) *        a[-2]
-        # dC_dW =      (self.layers[-2].a).T @ (          self.layers[-1].delta         )# * (self.layers[-2].a).T
-
-        #dE/dB[-1] =  dE/dA[-1]  * dA[-1]/dZ[-2]  *    dZ[-2]/dB[-1]
-        #dE/dB[-1] = (a[-1] - Y) * a[-1](1-a[-1]) *        1
-        # dC_dB =      (         self.layers[-1].delta          )
-
-        # Finner error rate for hvert ledd utenom output
         for i in reversed(range(1, self.hl)):
-            #delta_i             = (             w[i+1].T @ delta[i+1]                  ) * (               f'(z_i)                   )   <--- Bytter (w[i+1].T @ delta[i+1]) om slik at regnstykket går opp
-            self.layers[i].delta = (self.layers[i+1].delta @ (self.layers[i+1].weight).T) * (self.layers[i].a * (1 - self.layers[i].a))
+            self.layers[i].delta = (self.layers[i+1].delta @ (self.layers[i+1].weight).T) * self.layers[i].da
             
-            self.layers[i].weight = self.layers[i].weight - eta * ( self.layers[i-1].a.T @ self.layers[i].delta )
+            self.layers[i].weight = self.layers[i].weight - eta * ( self.layers[i-1].a.T @ self.layers[i].delta ) - eta*lmbda*self.layers[i].weight/len(z)
 
             self.layers[i].bias = self.layers[i].bias - eta * ( self.layers[i].delta[0,:])
 
-            # print("a")
-            # print(self.layers[i].a)
-            # print("Weight")
-            # print(self.layers[i].weight)
-            # print("Bias")
-            # print(self.layers[i].bias)
-            # print("Delta")
-            # print(self.layers[i].delta)
-            # print("_________________________________")
         
-        self.layers[0].delta = (self.layers[1].delta @ (self.layers[1].weight).T) * (self.layers[0].a * (1 - self.layers[0].a))
-        self.layers[0].weight = self.layers[0].weight - eta * ( XD.T@self.layers[0].delta)
-        self.layers[0].bias = self.layers[0].bias - eta * ( self.layers[i].delta[0,:])
+        self.layers[0].delta = (self.layers[1].delta @ self.layers[1].weight.T) * self.layers[0].da
+        self.layers[0].weight = self.layers[0].weight - eta*(XD.T @ self.layers[0].delta) - eta*lmbda*self.layers[0].weight/len(z)
+        self.layers[0].bias = self.layers[0].bias - eta*self.layers[0].delta[0,:]
 
         return np.sum(self.layers[-1].delta)/len(XD)
 
